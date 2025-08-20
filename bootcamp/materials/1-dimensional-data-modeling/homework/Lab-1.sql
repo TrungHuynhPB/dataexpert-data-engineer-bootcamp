@@ -1,10 +1,28 @@
+drop table if exists players;
+
+create table players (
+	player_name TEXT,
+	height TEXT,
+	college TEXT,
+	country TEXT,
+	draft_year TEXT,
+	draft_round TEXT,
+	draft_number TEXT,
+	season_stats season_stats[],
+	scoring_class scoring_class,
+	years_since_last_season INTEGER,
+	current_season INTEGER,
+	PRIMARY KEY(player_name, current_season)
+);
+
+
 WITH last_season AS (
     SELECT * FROM players
-    WHERE current_season = 2000
+    WHERE current_season = 1996
 
 ), this_season AS (
      SELECT * FROM player_seasons
-    WHERE season = 2001
+    WHERE season = 1997
 )
 INSERT INTO players 
 SELECT
@@ -34,9 +52,12 @@ SELECT
                     ELSE 'bad' END)::scoring_class
              ELSE ls.scoring_class
          END as scoring_class,
-         null as years_since_last_active,
+         case
+         	when ts.season is not null then 0
+         else ls.years_since_last_season + 1
+         end as years_since_last_season,
          ts.season IS NOT NULL as is_active,
-         2001 AS current_season
+         1997 AS current_season
     FROM last_season ls
     FULL OUTER JOIN this_season ts
     ON ls.player_name = ts.player_name
