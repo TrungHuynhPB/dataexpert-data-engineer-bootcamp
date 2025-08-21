@@ -36,7 +36,6 @@ SELECT
          END as scoring_class,
          ts.season IS NOT NULL as is_active,
          1998 AS current_season
-
     FROM last_season ls
     FULL OUTER JOIN this_season ts
     ON ls.player_name = ts.player_name

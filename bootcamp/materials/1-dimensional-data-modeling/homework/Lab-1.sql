@@ -20,6 +20,7 @@ create table players (
 	season_stats season_stats[],
 	scoring_class scoring_class,
 	years_since_last_season INTEGER,
+	is_active BOOLEAN,
 	current_season INTEGER,
 	PRIMARY KEY(player_name, current_season)
 );
@@ -55,8 +56,9 @@ select COALESCE(ls.player_name, ts.player_name) as player_name,
          	when ts.season is not null then 0
          else ls.years_since_last_season + 1
          end as years_since_last_season,
+         ts.season IS NOT NULL as is_active,
        	coalesce(ts.season, ls.current_season + 1) as current_season
-from today ts full outer join yesterday ls on ts.player_name = ls.player_name
+from today ts full outer join yesterday ls on ts.player_name = ls.player_name;
 
 --Query to test results
 
