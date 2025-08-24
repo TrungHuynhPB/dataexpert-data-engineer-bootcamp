@@ -11,7 +11,7 @@ create table players_scd (
 	primary key (player_name, start_season)
 );
 
-/* Manual Way: to insert data for slowly changing dimension table */
+/* Manual Way 1: to insert data for slowly changing dimension table */
 -- Cons: using many Windows function which increases memory and load on machine.
 insert into players_scd
 with with_previous as
@@ -84,7 +84,7 @@ WITH streak_started AS (
      SELECT player_name, scoring_class, start_date, end_date
      FROM aggregated
 
-/* Way 2:  */
+/* Manual Way 2:  */
 with last_season_scd as 
 (
 select * from players_scd
