@@ -30,9 +30,10 @@ create table players (
 	PRIMARY KEY(player_name, current_season)
 );
 
--- Minimum of player_seasons 
-select min(season) from player_seasons --1996
-
+-- Min/Max of player_seasons 
+select min(season) from player_seasons; --1996
+select max(season) from player_seasons; --2022
+select distinct season from player_seasons order by season asc ;
 -- Insert table script for each year
 insert into players
 with yesterday as 
