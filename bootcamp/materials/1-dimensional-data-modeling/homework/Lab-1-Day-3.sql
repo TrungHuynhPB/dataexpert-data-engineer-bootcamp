@@ -75,7 +75,33 @@ json_build_object('abbreviation', abbreviation, 'nickname', nickname, 'city', ci
 from teams_deduped where rn=1;
 
 
---2.4 
+--2.4 view the vertices type
 select type, count(1) from vertices group by 1;
 
+--2.5 
+insert into edges
+with deduped as 
+(
+select *, row_number() over (partition by player_id, game_id) as rn
+from game_details
+)
+select player_id as subject_identifier,
+	'player'::vertex_type as subject_type,
+	game_id as object_identifier,
+	'game'::vertex_type as object_type,
+	'plays_in'::edge_type as edge_type,
+	json_build_object(
+		'start_position', start_position,
+		'team_id', team_id,
+		'team_abbreviation', team_abbreviation
+	)  as properties
+from deduped where rn=1;
 
+
+--2.6 view top players
+select v.properties->>'player_name',
+	MAX(cast(e.properties->>'pts' as integer))
+from vertices v join edges e 
+on e.subject_identifier = v.identifier
+and e.subject_type = v.type 
+group by 1 order by 2 desc;
