@@ -135,4 +135,4 @@ dump.sql
 .vscode/*
 
 postgres-data/*
-homework/your_username
+homework/your_usernamewget.log
