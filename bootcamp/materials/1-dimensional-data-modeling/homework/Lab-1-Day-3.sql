@@ -92,15 +92,19 @@ select player_id as subject_identifier,
 	'plays_in'::edge_type as edge_type,
 	json_build_object(
 		'start_position', start_position,
+		'pts', pts,
 		'team_id', team_id,
 		'team_abbreviation', team_abbreviation
 	)  as properties
 from deduped where rn=1;
 
+select * from vertices;
+select * from edges;
+
 
 --2.6 view top players
 select v.properties->>'player_name',
-	MAX(cast(e.properties->>'pts' as integer))
+	MAX(cast(e.properties->>'pts' as integer)) 
 from vertices v join edges e 
 on e.subject_identifier = v.identifier
 and e.subject_type = v.type 
