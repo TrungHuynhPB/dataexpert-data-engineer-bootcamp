@@ -102,10 +102,56 @@ select * from vertices;
 select * from edges;
 
 
---2.6 view top players
+--2.6 view top players with highest points
 select v.properties->>'player_name',
 	MAX(cast(e.properties->>'pts' as integer)) 
 from vertices v join edges e 
 on e.subject_identifier = v.identifier
 and e.subject_type = v.type 
 group by 1 order by 2 desc;
+
+
+-- 2.7 Another way: Create both type of edges with 1 single query
+insert into edges
+with deduped as 
+(select *, row_number() over (partition by player_id, game_id) as rn
+from game_details),
+filtered as
+(select *  from deduped where rn=1),
+aggregated as
+(
+select f1.player_id as subject_player_id, MAX(f1.player_name) as subject_player_name,
+	f2.player_id as object_player_id, MAX(f2.player_name) as object_player_name,
+	case when f1.team_abbreviation = f2.team_abbreviation then 'shares_team'::edge_type else 'plays_against'::edge_type
+	end as edge_type,
+	count(1) as num_games,
+	SUM(f1.pts) as subject_points,
+	SUM(f2.pts) as object_points
+from filtered f1 join filtered f2
+on f1.game_id = f2.game_id 
+and f1.player_name <> f2.player_name
+where f1.player_id > f2.player_id
+group by f1.player_id, f2.player_id, case when f1.team_abbreviation = f2.team_abbreviation then 'shares_team'::edge_type else 'plays_against'::edge_type
+	end
+)
+select subject_player_id as subject_identifier,
+	 'player'::vertex_type as subject_type,
+	 object_player_id as object_identifier,
+	 'player'::vertex_type as object_type,
+	 edge_type as edge_type,
+	 json_build_object(
+	 	'num_games', num_games,
+	 	'subject_points', subject_points,
+	 	'object points', object_points
+	 )
+from aggregated
+
+-- 2.8
+select v.properties->>'player_name',
+	   e.object_identifier,
+	   cast(v.properties->>'number_of_games' as real)/
+	   case when cast(v.properties->>'total_points' as real) = 0 then 1 else cast(v.properties->>'total_points' as real) end,
+	   e.properties->>'subject_points',
+	   e.properties->>'num_games'
+from vertices v join edges e on v.identifier=e.subject_identifier and v.type=e.subject_type 
+where e.object_type = 'player'::vertex_type;
