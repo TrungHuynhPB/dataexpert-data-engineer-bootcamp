@@ -78,5 +78,5 @@ from fct_game_details
 group by dim_player_name
 order by 4 desc
 
-
+--END--
 
