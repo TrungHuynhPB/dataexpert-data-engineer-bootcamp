@@ -37,9 +37,9 @@ select distinct season from player_seasons order by season asc ;
 -- Insert table script for each year
 insert into players
 with yesterday as 
-	(select * from players where current_season= 2000)
+	(select * from players where current_season= 2021)
 , today as 
-	(select * from player_seasons where season= 2001)
+	(select * from player_seasons where season= 2022)
 select COALESCE(ls.player_name, ts.player_name) as player_name,
         COALESCE(ls.height, ts.height) as height,
         COALESCE(ls.college, ts.college) as college,
@@ -67,7 +67,7 @@ select COALESCE(ls.player_name, ts.player_name) as player_name,
 from today ts full outer join yesterday ls on ts.player_name = ls.player_name;
 
 --Query to test results
-
+select distinct current_season from players order by current_season desc;
    --First season points vs Latest season points
 select player_name, (season_stats[1]::season_stats).pts as first_season_pts ,
 	(season_stats[cardinality(season_stats)]::season_stats).pts as latest_season_pts 
@@ -75,7 +75,8 @@ from players
 where current_season = 2001 
 
   --Performance query = Latest season pts / first season pts
-select player_name, (season_stats[cardinality(season_stats)]::season_stats).pts/ 
+select player_name,
+(season_stats[cardinality(season_stats)]::season_stats).pts / 
 	case when (season_stats[1]::season_stats).pts = 0 then 1 else (season_stats[1]::season_stats).pts end as performance
 from players 
 where current_season = 2001 
