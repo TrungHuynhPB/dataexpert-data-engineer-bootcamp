@@ -22,6 +22,15 @@ create table users_cumulated (
 	primary key (user_id,device_id,date)
 );
 
+drop type if exists device_activity_datelist;
+create type device_activity_datelist as
+(device_id real, browser_type text, active_date date);
+
+unnest(ARRAY[
+	ROW(device_id, browser_type, active_date)::device_activity_datelist
+]) as records
+   
+
 insert into users_cumulated
 with yesterday as ( 
 select * from users_cumulated where date = DATE('2023-01-02')
