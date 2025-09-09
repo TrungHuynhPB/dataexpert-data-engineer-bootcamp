@@ -14,11 +14,13 @@ select * from deduped where row_num=1
   - data type here should look similar to `MAP<STRING, ARRAY[DATE]>`
     - or you could have `browser_type` as a column with multiple rows for each user (either way works, just be consistent!)
  */
---Way 1
-drop table if exists user_devices_cumulated;
+--- A cumulative query to generate `device_activity_datelist` from `events`
+--- A `datelist_int` generation query. Convert the `device_activity_datelist` column into a `datelist_int` column 
+DROP TABLE IF EXISTS user_devices_cumulated;
 CREATE TABLE user_devices_cumulated (
     user_id TEXT,
-    device_activity JSONB,
+    device_activity_datelist JSONB,
+    device_activity_datelist_int JSONB,
     snap_dt TIMESTAMP,
     PRIMARY KEY (user_id, snap_dt)
 );
@@ -39,26 +41,54 @@ agg_browser AS (
         user_id,
         device_id,
         browser_type,
-        ARRAY_AGG(DISTINCT event_date ORDER BY event_date) AS active_dates
+        ARRAY_AGG(DISTINCT event_date ORDER BY event_date) AS active_dates,
+        ARRAY_AGG(
+            DISTINCT CAST(to_char(event_date, 'YYYYMMDD') AS INT) 
+            ORDER BY CAST(to_char(event_date, 'YYYYMMDD') AS INT)
+        ) AS active_dates_int
     FROM event_devices
     GROUP BY user_id, device_id, browser_type
 )
 SELECT 
     user_id,
-    jsonb_object_agg(COALESCE(browser_type, 'unknown'), to_jsonb(active_dates)) AS device_activity,
+    jsonb_object_agg(COALESCE(browser_type, 'unknown'), to_jsonb(active_dates)) AS device_activity_datelist,
+    jsonb_object_agg(COALESCE(browser_type, 'unknown'), to_jsonb(active_dates_int)) AS device_activity_datelist_int,
     CURRENT_TIMESTAMP  AS snap_dt
 FROM agg_browser
 GROUP BY user_id;
+--select * from user_devices_cumulated;
 
-select * from user_devices_cumulated;
---- A cumulative query to generate `device_activity_datelist` from `events`
-
---- A `datelist_int` generation query. Convert the `device_activity_datelist` column into a `datelist_int` column 
 
 --- A DDL for `hosts_cumulated` table 
 -- a `host_activity_datelist` which logs to see which dates each host is experiencing any activity
-
 --- The incremental query to generate `host_activity_datelist`
+DROP TABLE IF EXISTS hosts_cumulated;
+CREATE TABLE hosts_cumulated (
+    host TEXT,
+    host_activity_datelist JSONB,
+    snap_dt TIMESTAMP,
+    PRIMARY KEY (host, snap_dt)
+);
+
+INSERT INTO hosts_cumulated
+WITH host_events AS (
+    SELECT 
+        COALESCE(e.host, 'unknown') AS host,
+        CAST(e.event_time AS DATE) AS event_date
+    FROM events e
+),
+agg_hosts AS (
+    SELECT 
+        host,
+        ARRAY_AGG(DISTINCT event_date ORDER BY event_date) AS active_dates
+    FROM host_events
+    GROUP BY host
+)
+SELECT 
+    host,
+    to_jsonb(active_dates) AS host_activity_datelist,
+    CURRENT_TIMESTAMP AS snap_dt
+FROM agg_hosts;
 
 /*
 - A monthly, reduced fact table DDL `host_activity_reduced`
