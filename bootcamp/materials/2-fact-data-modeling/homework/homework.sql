@@ -63,13 +63,35 @@ GROUP BY user_id;
 -- a `host_activity_datelist` which logs to see which dates each host is experiencing any activity
 --- The incremental query to generate `host_activity_datelist`
 DROP TABLE IF EXISTS hosts_cumulated;
-CREATE TABLE hosts_cumulated (
+create table hosts_cumulated (
     host TEXT,
     host_activity_datelist JSONB,
     snap_dt TIMESTAMP,
-    PRIMARY KEY (host, snap_dt)
+    data_date,
+    primary key (host,data_date)
 );
 
+
+--generation query
+--select min(event_time), max(event_time) from events e -2023-01-01 & 2023-01-31
+with yesterday as
+(
+select  host,
+        host_activity_datelist,
+        data_date,
+        snap_dt
+from hosts_cumulated e
+where cast(event_time as date) = '2023-01-01'
+),
+today as 
+(
+select  COALESCE(e.host, 'unknown') AS host,
+        CAST(e.event_time AS DATE) AS event_date
+from events e
+where cast(event_time as date) = '2023-01-02'
+)
+
+/*
 INSERT INTO hosts_cumulated
 WITH host_events AS (
     SELECT 
@@ -88,7 +110,8 @@ SELECT
     host,
     to_jsonb(active_dates) AS host_activity_datelist,
     CURRENT_TIMESTAMP AS snap_dt
-FROM agg_hosts;
+FROM agg_hosts; */
+
 
 /*
 - A monthly, reduced fact table DDL `host_activity_reduced`
