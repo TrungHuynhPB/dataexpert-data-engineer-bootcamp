@@ -67,7 +67,7 @@ create table hosts_cumulated (
     host TEXT,
     host_activity_datelist JSONB,
     snap_dt TIMESTAMP,
-    data_date,
+    data_date date,
     primary key (host,data_date)
 );
 
@@ -76,17 +76,19 @@ create table hosts_cumulated (
 --select min(event_time), max(event_time) from events e -2023-01-01 & 2023-01-31
 with yesterday as
 (
-select  host,
-        host_activity_datelist,
-        data_date,
-        snap_dt
+select  coalesce(host,'unknown') as host,
+        coalesce(host_activity_datelist, null) as host_activity_datelist,
+        coalesce(data_date,'2023-01-01') as data_date,
+        coalesce(snap_dt,null) as snap_dt
 from hosts_cumulated e
-where cast(event_time as date) = '2023-01-01'
+where cast(data_date as date) = '2023-01-01'
 ),
 today as 
 (
 select  COALESCE(e.host, 'unknown') AS host,
-        CAST(e.event_time AS DATE) AS event_date
+        CAST(e.event_time AS DATE) AS event_date,
+        '2023-01-02' as data_date,
+        CURRENT_TIMESTAMP  AS snap_dt
 from events e
 where cast(event_time as date) = '2023-01-02'
 )
