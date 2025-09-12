@@ -148,27 +148,8 @@ merged AS (
 INSERT INTO hosts_cumulated (host, host_activity_datelist, data_date, snap_dt)
 SELECT * FROM merged;
 
-select * from hosts_cumulated;
-/*
-INSERT INTO hosts_cumulated
-WITH host_events AS (
-    SELECT 
-        COALESCE(e.host, 'unknown') AS host,
-        CAST(e.event_time AS DATE) AS event_date
-    FROM events e
-),
-agg_hosts AS (
-    SELECT 
-        host,
-        ARRAY_AGG(DISTINCT event_date ORDER BY event_date) AS active_dates
-    FROM host_events
-    GROUP BY host
-)
-SELECT 
-    host,
-    to_jsonb(active_dates) AS host_activity_datelist,
-    CURRENT_TIMESTAMP AS snap_dt
-FROM agg_hosts; */
+-- select * from hosts_cumulated;
+
 
 
 /*
@@ -178,6 +159,83 @@ FROM agg_hosts; */
    - hit_array - think COUNT(1)
    - unique_visitors array -  think COUNT(DISTINCT user_id) 
 */
+DROP TABLE IF EXISTS host_activity_reduced;
+CREATE TABLE host_activity_reduced (
+    data_date DATE,
+    host TEXT,
+    hit_array INT[],
+    unique_visitors_array INT[],
+    snap_dt TIMESTAMP,
+    PRIMARY KEY (data_date, host)
+);
+
+INSERT INTO host_activity_reduced (data_date, host, hit_array, unique_visitors_array, snap_dt)
+WITH base AS (
+    SELECT 
+        cast(event_time as date) AS data_date,
+        CAST(event_time AS DATE) AS event_date,
+        COALESCE(host, 'unknown') AS host,
+        user_id
+    FROM events
+),
+daily_agg AS (
+    SELECT 
+        data_date,
+        host,
+        event_date,
+        COUNT(1) AS hits,
+        COUNT(DISTINCT user_id) AS unique_visitors
+    FROM base
+    GROUP BY data_date, host, event_date
+),
+month_agg AS (
+    SELECT
+        data_date,
+        host,
+        ARRAY_AGG(hits ORDER BY event_date) AS hit_array,
+        ARRAY_AGG(unique_visitors ORDER BY event_date) AS unique_visitors_array
+    FROM daily_agg
+    GROUP BY data_date, host
+)
+SELECT 
+    data_date,
+    host,
+    hit_array,
+    unique_visitors_array,
+    CURRENT_TIMESTAMP AS snap_dt
+FROM month_agg;
+
+
 
 
 --- An incremental query that loads `host_activity_reduced` - day-by-day
+WITH daily_stats AS (
+    SELECT 
+        cast( e.event_time as date) AS data_date,
+        COALESCE(e.host, 'unknown') AS host,
+        CAST(e.event_time AS DATE) AS event_date,
+        COUNT(1) AS hits,
+        COUNT(DISTINCT e.user_id) AS unique_visitors
+    FROM events e
+    WHERE CAST(e.event_time AS DATE) = CURRENT_DATE - INTERVAL '1 day'  -- 👈 load "yesterday"
+    GROUP BY 1, 2, 3
+),
+upserted AS (
+    SELECT 
+        d.data_date,
+        d.host,
+        ARRAY[d.hits] AS hit_array,
+        ARRAY[d.unique_visitors] AS unique_visitors_array,
+        CURRENT_TIMESTAMP AS snap_dt
+    FROM daily_stats d
+)
+INSERT INTO host_activity_reduced (data_date, host, hit_array, unique_visitors_array, snap_dt)
+SELECT data_date, host, hit_array, unique_visitors_array, snap_dt
+FROM upserted
+ON CONFLICT (data_date, host) DO UPDATE
+SET hit_array = host_activity_reduced.hit_array || EXCLUDED.hit_array,
+    unique_visitors_array = host_activity_reduced.unique_visitors_array || EXCLUDED.unique_visitors_array,
+    snap_dt = EXCLUDED.snap_dt;
+
+-- select * from host_activity_reduced
+
