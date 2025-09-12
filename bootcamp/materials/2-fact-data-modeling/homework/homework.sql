@@ -71,9 +71,29 @@ create table hosts_cumulated (
     primary key (host,data_date)
 );
 
+INSERT INTO hosts_cumulated
+WITH host_events AS (
+    SELECT 
+        COALESCE(e.host, 'unknown') AS host,
+        CAST(e.event_time AS DATE) AS event_date
+    FROM events e
+),
+agg_hosts AS (
+    SELECT 
+        host,
+        ARRAY_AGG(DISTINCT event_date ORDER BY event_date) AS active_dates
+    FROM host_events
+    GROUP BY host
+)
+SELECT 
+    host,
+    to_jsonb(active_dates) AS host_activity_datelist,
+    CURRENT_TIMESTAMP AS snap_dt
+FROM agg_hosts;
 
 --generation query
 --select min(event_time), max(event_time) from events e -2023-01-01 & 2023-01-31
+-- incremental query
 WITH yesterday AS (
     SELECT  
         COALESCE(host,'unknown') AS host,
