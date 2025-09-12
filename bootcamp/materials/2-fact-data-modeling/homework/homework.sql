@@ -74,25 +74,61 @@ create table hosts_cumulated (
 
 --generation query
 --select min(event_time), max(event_time) from events e -2023-01-01 & 2023-01-31
-with yesterday as
-(
-select  coalesce(host,'unknown') as host,
-        coalesce(host_activity_datelist, null) as host_activity_datelist,
-        coalesce(data_date,'2023-01-01') as data_date,
-        coalesce(snap_dt,null) as snap_dt
-from hosts_cumulated e
-where cast(data_date as date) = '2023-01-01'
+WITH yesterday AS (
+    SELECT  
+        COALESCE(host,'unknown') AS host,
+        host_activity_datelist,
+        data_date,
+        snap_dt
+    FROM hosts_cumulated e
+    WHERE CAST(data_date AS date) = '2023-01-06'
 ),
-today as 
-(
-select  COALESCE(e.host, 'unknown') AS host,
+today AS (
+    SELECT  
+        COALESCE(e.host, 'unknown') AS host,
         CAST(e.event_time AS DATE) AS event_date,
-        '2023-01-02' as data_date,
-        CURRENT_TIMESTAMP  AS snap_dt
-from events e
-where cast(event_time as date) = '2023-01-02'
+        '2023-01-07'::date AS data_date,
+        CURRENT_TIMESTAMP AS snap_dt
+    FROM events e
+    WHERE CAST(e.event_time AS date) = '2023-01-07'
+),
+agg_today AS (
+    SELECT 
+        host,
+        ARRAY_AGG(DISTINCT event_date ORDER BY event_date) AS today_dates,
+        data_date,
+        CURRENT_TIMESTAMP AS snap_dt
+    FROM today
+    GROUP BY host, data_date
+),
+merged AS (
+    SELECT 
+        COALESCE(y.host, t.host) AS host,
+        -- Merge yesterday's datelist (if any) with today's
+        to_jsonb(
+            ARRAY(
+                SELECT DISTINCT d::date
+                FROM (
+                    SELECT unnest(COALESCE(ARRAY(
+                        SELECT x::date
+                        FROM jsonb_array_elements_text(y.host_activity_datelist) AS x
+                    ), '{}')) AS d
+                    UNION ALL
+                    SELECT unnest(COALESCE(t.today_dates, '{}')) AS d
+                ) all_dates
+                ORDER BY d
+            )
+        ) AS host_activity_datelist,
+        t.data_date,
+        t.snap_dt
+    FROM agg_today t
+    FULL OUTER JOIN yesterday y
+        ON y.host = t.host
 )
+INSERT INTO hosts_cumulated (host, host_activity_datelist, data_date, snap_dt)
+SELECT * FROM merged;
 
+select * from hosts_cumulated;
 /*
 INSERT INTO hosts_cumulated
 WITH host_events AS (
